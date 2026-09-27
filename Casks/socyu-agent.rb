@@ -114,25 +114,15 @@ cask "socyu-agent" do
     run "/usr/bin/xattr",
         args: ["-dr", "com.apple.quarantine", "{{appdir}}/SocyU Agent.app"],
         sudo: false
-    # `brew install --cask` never launches the app afterward (unlike a native
-    # .pkg installer) — a real user hit this: they ran `brew install --cask
-    # socyu-agent`, then immediately went to socyu.com's "Check connection"
-    # step, and got net::ERR_CONNECTION_REFUSED on 127.0.0.1:7845/health
-    # because the agent process simply wasn't running yet. Launching it here,
-    # right after quarantine is cleared, closes that gap — the local health
-    # server (localHealthServer.js) is listening within a couple seconds of
-    # this, well before a user can tab back to the browser and click retry.
-    run "/usr/bin/open",
-        args: ["-a", "{{appdir}}/SocyU Agent.app"],
-        sudo: false
   end
 
   caveats <<~EOS
-    SocyU Agent is not notarized by Apple (no paid Developer Program).
-    Homebrew already cleared the quarantine flag that would otherwise
-    block first launch, and has launched SocyU Agent for you.
-    If macOS still refuses to open it: System Settings -> Privacy &
-    Security -> scroll to the blocked-app notice -> "Open Anyway".
+    SocyU Agent is installed. Open it from Spotlight or:
+      open -a "SocyU Agent"
+
+    Not notarized by Apple (no paid Developer Program) — quarantine has
+    already been cleared. If macOS still blocks it: System Settings ->
+    Privacy & Security -> scroll to the blocked-app notice -> "Open Anyway".
   EOS
 
   zap trash: [
