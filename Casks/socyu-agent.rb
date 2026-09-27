@@ -89,6 +89,8 @@ cask "socyu-agent" do
 
   depends_on macos: :sonoma
 
+  auto_updates true
+
   app "SocyU Agent.app"
 
   # Ad-hoc signed, unnotarized (no paid Apple Developer Program — see
