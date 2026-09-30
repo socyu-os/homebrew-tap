@@ -89,9 +89,52 @@ cask "agent" do
 
   depends_on macos: :sonoma
 
-  auto_updates true
+  # No `auto_updates true`: the app has no self-updater (no Squirrel /
+  # electron-updater), and that flag makes a plain `brew upgrade` skip the
+  # cask forever. Homebrew is the updater, so let it see new versions.
 
   app "SocyU Agent.app"
+
+  # One SocyU Agent per Mac, always the newest. Preflight runs before the App
+  # artifact is moved, inside Homebrew's install-step sandbox (writes only to
+  # declared paths, hence writable_paths).
+  #  1. Quit every running copy: the launcher execs "SocyU Agent.electron",
+  #     so match the bundle path (pkill -f), not the process name.
+  #  2. Remove any other copy of *our* bundle (com.socyu.agent): a non-brew
+  #     install (install.sh, dragged DMG) that would otherwise fail the move
+  #     with "It seems there is already an App at ...", a ~/Applications
+  #     fallback install, and old *.bak-* backups. Account data lives in
+  #     ~/Library/Application Support/socyu-agent, never in the bundle.
+  #     On a brew-managed upgrade the old bundle has already been moved aside,
+  #     so step 2 is a no-op there. The step sandbox sets HOME to a temp dir,
+  #     so the script resolves the real home via dscl, not $HOME.
+  #  0. Website-installer machines run the app from a KeepAlive LaunchAgent
+  #     (com.socyu.agent), which would respawn it mid-swap: possibly the new
+  #     bundle before postflight clears quarantine, which is Gatekeeper's
+  #     "Not Opened / Move to Bin" prompt. Disable it for the swap; postflight
+  #     re-enables and kickstarts it. (bootout works in the sandbox but
+  #     bootstrap fails with eServerError, so disable/enable, not unload/load.)
+  preflight_steps do
+    run "/bin/sh",
+        args:         ["-c", '/bin/launchctl disable "gui/$(/usr/bin/id -u)/com.socyu.agent" 2>/dev/null; exit 0'],
+        must_succeed: false
+    terminate_process "SocyU Agent\\.app/Contents/", match: :full, attempts: 5, must_succeed: false
+    run "/bin/sh",
+        args: [
+          "-c",
+          'ours() { [ "$(/usr/bin/defaults read "$1/Contents/Info" CFBundleIdentifier 2>/dev/null)" = ' \
+          '"com.socyu.agent" ]; }; ' \
+          'u=$(/usr/bin/id -un); h=$(/usr/bin/dscl . -read "/Users/$u" NFSHomeDirectory 2>/dev/null ' \
+          '| /usr/bin/cut -d" " -f2); [ -d "$h" ] || h="/Users/$u"; ' \
+          'for a in "$1/SocyU Agent.app" "$1/SocyU Agent.app".bak-* ' \
+          '"$h/Applications/SocyU Agent.app" "$h/Applications/SocyU Agent.app".bak-*; do ' \
+          '[ -d "$a" ] && ours "$a" && /bin/rm -rf "$a"; done; exit 0',
+          "sh",
+          "{{appdir}}",
+        ],
+        writable_paths: ["{{appdir}}", "~/Applications"],
+        must_succeed:   false
+  end
 
   # Ad-hoc signed, unnotarized (no paid Apple Developer Program — see
   # sdk/socyu-agent/docs/TERMINAL_INSTALL_PLAN.md "Zero-cost constraint").
@@ -116,10 +159,36 @@ cask "agent" do
     run "/usr/bin/xattr",
         args: ["-dr", "com.apple.quarantine", "{{appdir}}/SocyU Agent.app"],
         sudo: false
+    # Upgrading from the old "socyu-agent" token leaves an orphan
+    # Caskroom/socyu-agent (receipt only, no version dir) that `brew list`
+    # still shows. Remove it only when no installed version remains in it.
+    run "/bin/sh",
+        args: [
+          "-c",
+          'd="$1/Caskroom/socyu-agent"; [ -d "$d" ] || exit 0; ' \
+          'ls -d "$d"/[0-9]* >/dev/null 2>&1 && exit 0; /bin/rm -rf "$d"; exit 0',
+          "sh",
+          "{{HOMEBREW_PREFIX}}",
+        ],
+        writable_paths: ["{{HOMEBREW_PREFIX}}/Caskroom/socyu-agent"],
+        must_succeed:   false
+    # Undo preflight's disable; if the LaunchAgent is loaded, restart it so
+    # the new version is running again. `open` cannot launch apps from inside
+    # the step sandbox (kLSUnknownErr), so brew-only installs are reopened by
+    # the user (see caveats), as with other casks that have no self-updater.
+    run "/bin/sh",
+        args:         [
+          "-c",
+          'd="gui/$(/usr/bin/id -u)/com.socyu.agent"; /bin/launchctl enable "$d" 2>/dev/null; ' \
+          '/bin/launchctl print "$d" >/dev/null 2>&1 && /bin/launchctl kickstart -k "$d" 2>/dev/null; exit 0',
+        ],
+        must_succeed: false
   end
 
   caveats <<~EOS
-    SocyU Agent is installed. Open it from Spotlight or:
+    SocyU Agent #{version} is installed. Any older copy was quit and replaced,
+    so this is the only SocyU Agent on this Mac. If it is not already running,
+    open it from Spotlight or:
       open -a "SocyU Agent"
 
     Not notarized by Apple (no paid Developer Program) — quarantine has
@@ -128,7 +197,10 @@ cask "agent" do
   EOS
 
   zap trash: [
+    "~/Library/Application Support/socyu-agent",
     "~/Library/Application Support/SocyU Agent",
+    "~/Library/LaunchAgents/com.socyu.agent.plist",
+    "~/Library/Logs/socyu-agent",
     "~/Library/Caches/com.socyu.agent",
     "~/Library/Saved Application State/com.socyu.agent.savedState",
   ]
