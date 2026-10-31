@@ -1,5 +1,5 @@
 cask "agent" do
-  version "0.1.18"
+  version "0.1.19"
 
   # GitHub Releases renames spaces in uploaded asset filenames to dots
   # (confirmed via `gh release view --json assets` after the real upload —
@@ -75,12 +75,12 @@ cask "agent" do
   # helpers and framework binaries — after-pack.js now signs all Frameworks
   # subcomponents bottom-up before sealing the main bundle.
   on_arm do
-    sha256 "1c1b9a4decb38a1d65bdde2b8a8b7c82b1422ae3952a2065603c0c5068f9a947"
-    url "https://duzzvklv1705w.cloudfront.net/releases/v0.1.18/SocyU.Agent-0.1.18-arm64.dmg"
+    sha256 "3335b3114f22ccb489c18b25dbdaefcb02ab91ba9cb9c4a4462b498d528249bf"
+    url "https://duzzvklv1705w.cloudfront.net/releases/v0.1.19/SocyU.Agent-0.1.19-arm64.dmg"
   end
   on_intel do
-    sha256 "d08672a1bc3f72328d12210e06875351c2c32d6e45fd0c7df82cdb141381a3f3"
-    url "https://duzzvklv1705w.cloudfront.net/releases/v0.1.18/SocyU.Agent-0.1.18.dmg"
+    sha256 "fdebf5afbcbda4956ceae4350828759e676ff84c8cdc6e04b197fe97352c5c4c"
+    url "https://duzzvklv1705w.cloudfront.net/releases/v0.1.19/SocyU.Agent-0.1.19.dmg"
   end
 
   name "SocyU Agent"
